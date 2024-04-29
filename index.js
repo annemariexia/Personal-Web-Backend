@@ -10,11 +10,10 @@ dotenv.config();
 const CONTACT_EMAIL = functions.config().env.vite_contact_email;
 const EMAIL_PASSWORD = functions.config().env.vite_contact_pssw;
 
-
 const app = express();
-
+app.use(cors({origin: true}));
 app.use(bodyParser.json());
-app.use(cors());
+// app.use(cors());
 
 // app.get('/get', (req, res) => {
 //   res.send('Hello World!');
@@ -50,4 +49,12 @@ app.post("/send-email", (req, res) => {
   });
 });
 
-exports.api = functions.https.onRequest(app);
+exports.api = functions.https.onRequest((request, response) => {
+  // Set CORS headers
+  response.setHeader("Access-Control-Allow-Origin", "*");
+  response.setHeader("Access-Control-Allow-Methods", "POST");
+  response.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+  // Forward request to Express app
+  return app(request, response);
+});
