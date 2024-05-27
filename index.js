@@ -4,6 +4,7 @@ const bodyParser = require("body-parser");
 const cors = require("cors");
 const nodemailer = require("nodemailer");
 const dotenv = require("dotenv");
+const rateLimit = require("express-rate-limit");
 
 dotenv.config();
 
@@ -13,11 +14,18 @@ const EMAIL_PASSWORD = functions.config().env.vite_contact_pssw;
 const app = express();
 app.use(cors({origin: true}));
 app.use(bodyParser.json());
-// app.use(cors());
 
-// app.get('/get', (req, res) => {
-//   res.send('Hello World!');
-// });
+
+const limiter = rateLimit({
+  windowMs: 10 * 60 * 1000, // 10 minutes
+  max: 3, // Limit each IP to 3 requests per windowMs
+  message: "Too many requests, please try again later."
+});
+
+// Apply the rate limiter to all requests
+app.use(limiter);
+
+
 
 app.post("/send-email", (req, res) => {
   const {name, email, message} = req.body; // Configure Nodemailer transporter
@@ -37,16 +45,29 @@ app.post("/send-email", (req, res) => {
     text: `Name: ${name}\nEmail: ${email}\nMessage: ${message}`,
   };
 
-  // Send email
-  transporter.sendMail(mailOptions, (error, info) => {
-    if (error) {
-      console.error(error);
-      res.status(500).send("Internal Server Error");
-    } else {
-      console.log("Email sent: " + info.response);
-      res.status(200).send("Email sent successfully");
-    }
-  });
+
+  const sendEmail = (mailOptions) => {
+    return new Promise((resolve, reject) => {
+      transporter.sendMail(mailOptions, (error, info) => {
+        if (error) {
+          console.error(error);
+          reject(error); // Reject the promise with the error
+        } else {
+          console.log("Email sent: " + info.response);
+          resolve(info); // Resolve the promise with the information
+        }
+      });
+    });
+  };
+
+  sendEmail(mailOptions)
+      .then((info) => {
+        res.status(200).send("Email sent successfully");
+      })
+      .catch((error) => {
+        console.error("Error sending email:", error);
+        res.status(500).send("Internal Server Error");
+      });
 });
 
 exports.api = functions.https.onRequest((request, response) => {
